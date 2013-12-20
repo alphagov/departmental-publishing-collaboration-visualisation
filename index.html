@@ -1,0 +1,237 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+
+  .node {
+    stroke: #fff;
+    stroke-width: 1.5px;
+  }
+
+  .link {
+    stroke: #999;
+    stroke-opacity: .6;
+  }
+  .fixed {
+    stroke: #f00;
+  }
+  #graph {
+    position: relative;
+    width: 640px;
+    clear: both;
+    float: left;
+  }
+
+  #tooltip {
+    float: left;
+    width: 320px;
+    background: #fff;
+    font: 12px sans-serif;
+  }
+  #tooltip ul {
+    margin: 3px 0;
+    padding: 0 1.4em;
+  }
+  #tooltip li {
+    font-size: 12px;
+    margin-bottom: 3px;
+  }
+  #colour-map {
+    margin: 10px 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  #colour-map li {
+    border: 3px solid;
+    float: left;
+    font-size: 13px;
+    display: block;
+    list-style: none;
+    margin: 2px;
+    padding: 3px;
+  }
+  #wrapper {
+    width: 960px;
+    margin: 0 auto;
+  }
+</style>
+<body>
+  <div id="wrapper">
+    <h1>Departmental publishing collaboration visualisation</h1>
+    <ul id="colour-map"></ul>
+    <div id="graph"></div>
+    <p id="tooltip"></p>
+  </div>
+<script src="http://d3js.org/d3.v3.js"></script>
+
+<script>
+var types = {
+ executive_office: "Executive office",
+ ministerial_department: "Ministerial department",
+ non_ministerial_department: "Non-ministerial department",
+ executive_agency: "Executive agency",
+ executive_ndpb: "Executive non-departmental public body",
+ advisory_ndpb: "Advisory non-departmental public body",
+ tribunal_ndpb: "Tribunal non-departmental public body",
+ public_corporation: "Public corporation",
+ independent_monitoring_body: "Independent monitoring body",
+ adhoc_advisory_group: "Ad-hoc advisory group",
+ devolved_administration: "Devolved administration",
+ sub_organisation: "Sub-organisation",
+ other:  "Other"
+}
+
+d3.json('data/org-connections.json', function(err, data){
+  var org, orgInt, connection, connectionInt, links = [], orgs = [];
+
+  for(org in data.connections){
+    orgInt = parseInt(org, 10)
+
+    if(Object.keys(data.connections[org]).length > 0){
+      orgs.push(data.names[orgInt]);
+      data.names[orgInt].dest = orgs.length-1;
+      data.names[orgInt].conns = [];
+    }
+
+    for(connection in data.connections[org]){
+      connectionInt = parseInt(connection, 10);
+
+      data.names[orgInt].conns.push({ name: data.names[connectionInt].name, value: data.connections[org][connectionInt] });
+
+      if(typeof data.names[connectionInt].dest === 'undefined'){
+        orgs.push(data.names[connectionInt]);
+        data.names[connectionInt].dest = orgs.length-1;
+      }
+
+      if(connectionInt > orgInt){
+        links.push({ source: data.names[orgInt].dest, target: data.names[connectionInt].dest, value: data.connections[org][connection] });
+      }
+    }
+  }
+  drawGraph(orgs, links);
+});
+var width = 600,
+    height = 500;
+function colourMap(key){
+  if(typeof window._colourMap === 'undefined'){
+    window._colourMap = [];
+  }
+  if(_colourMap.indexOf(key) > -1){
+    return _colourMap.indexOf(key);
+  } else {
+    _colourMap.push(key);
+    return _colourMap.length -1;
+  }
+}
+var ministerialX = (function(){
+  var _ministries = [];
+  return function(name){
+    var position = _ministries.indexOf(name);
+    if(position < 0){
+      position = _ministries.length;
+      _ministries.push(name);
+    }
+    var x = Math.sin((Math.PI*2 / 24) * position);
+    return (x * width/2) + width/2;
+  }
+}());
+var ministerialY = (function(){
+  var _ministries  = [];
+  return function(name){
+    var position = _ministries.indexOf(name);
+    if(position < 0){
+      position = _ministries.length;
+      _ministries.push(name);
+    }
+    var x = Math.cos((Math.PI*2 / 24) * position);
+    return (x * height/2) + height/2;
+  }
+}());
+function drawGraph(nodes, links){
+  var color = d3.scale.category20();
+
+  var force = d3.layout.force()
+      .charge(-30)
+      .linkStrength(function(d){ return (1/d.value); })
+      .size([width, height]);
+
+  var padding = 20;
+  var svg = d3.select("#graph").append("svg")
+      .attr("width", width+padding*2)
+      .attr("height", height+padding*2)
+      .append('g').attr('transform', 'translate('+padding+','+padding+')');
+
+  force
+      .nodes(nodes)
+      .links(links)
+      .friction(0.3)
+      .start();
+
+  force.drag().on("dragstart", dragstart);
+
+  var link = svg.selectAll(".link")
+      .data(links)
+      .enter().append("line")
+      .attr("class", "link")
+      .style("stroke-width", function(d) { return (d.value/30)+0.1; });
+
+  var node = svg.selectAll(".node")
+      .data(nodes)
+    .enter().append("circle")
+      .attr("class", "node")
+      .classed("fixed", function(d){
+        if(d.type === 'ministerial_department'){
+          d.x = d.px = ministerialX(d.name);
+          d.y = d.py = ministerialY(d.name);
+          d.fixed = true;
+          return true;
+        } else { return false }
+      })
+      .attr("r", 5)
+      .attr('fill', function(d) { return color(colourMap(d.type)); })
+      .attr('x', function(d){ if(d.type === 'ministerial_department'){ return ministerialX(d.name); } })
+      .attr('y', function(d){ if(d.type === 'ministerial_department'){ return ministerialY(d.name); } })
+      .on("dblclick", dblclick)
+      .on("mouseover", startTooltip)
+      .call(force.drag);
+
+  force.on("tick", function() {
+    link.attr("x1", function(d) { return d.source.x; })
+      .attr("y1", function(d) { return d.source.y; })
+      .attr("x2", function(d) { return d.target.x; })
+      .attr("y2", function(d) { return d.target.y; });
+
+    node.attr("cx", function(d) { return d.x; })
+      .attr("cy", function(d) { return d.y; });
+  });
+  function dblclick(d) {
+    d3.select(this).classed("fixed", d.fixed = false);
+  }
+
+  function dragstart(d) {
+    d3.select(this).classed("fixed", d.fixed = true);
+  }
+  function startTooltip(d) {
+    var string = ['<strong>', d.name, '</strong><ul>'];
+    d.conns.sort(function(a,b){ return b.value-a.value; });
+    d.conns.forEach(function(el){
+      string.push('<li>'+ el.name + ': ' + el.value + '</li>');
+    });
+    string.push('</ul>');
+    d3.select('#tooltip').html(string.join(''));
+  }
+  function endTooltip(d) {
+    d3.select('#tooltip').text('').attr('style', '');
+  }
+
+
+  function makeKey(){
+    var out = [];
+    _colourMap.forEach(function(el, i){
+      out.push('<li style="border-color: '+ color(i) + '">' + types[el] + '</li>');
+    });
+    document.getElementById('colour-map').innerHTML = out.join('');
+  }
+  makeKey();
+
+}
+</script>
