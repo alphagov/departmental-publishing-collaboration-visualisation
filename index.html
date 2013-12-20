@@ -1,10 +1,12 @@
 <!doctype html>
 <meta charset="utf-8">
+<title>Departmental publishing collaboration visualisation</title>
 <style>
 
   .node {
     stroke: #fff;
     stroke-width: 1.5px;
+    cursor: pointer;
   }
 
   .link {
@@ -53,10 +55,14 @@
     width: 960px;
     margin: 0 auto;
   }
+  #info {
+    width: 640px;
+  }
 </style>
 <body>
   <div id="wrapper">
     <h1>Departmental publishing collaboration visualisation</h1>
+    <p id="info">A visualisation of documents which departments have jointly published. Each dot represents a department or agency on <a href="https://www.gov.uk/government/organisations">GOV.UK</a>. The lines between them represent the number of documents they have collaborated on, the thicker the line the more they publish together. You can drag the dots around and try and find groups or clusters of departments.</p>
     <ul id="colour-map"></ul>
     <div id="graph"></div>
     <p id="tooltip"></p>
