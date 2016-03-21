@@ -4,7 +4,7 @@ A visualisation of documents which departments have jointly published. Each dot 
 
 ## Licence
 
-Copyright (c) 2013 HM Government (Government Digital Service)
+Copyright (c) 2013 Crown Copyright (Government Digital Service)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
